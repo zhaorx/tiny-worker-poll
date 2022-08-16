@@ -8,17 +8,21 @@ import (
 )
 
 const (
-	MaxWorker = 10
-	MaxQueue  = 200
+	MaxWorker = 3   //随便设置值
+	MaxQueue  = 200 // 随便设置值
 )
 
+// 一个可以发送工作请求的缓冲 channel
 var JobQueue chan Job
 
-type Payload struct {
-	// 传啥不重要
+func init() {
+	JobQueue = make(chan Job, MaxQueue)
 }
+
+type Payload struct{}
+
 type Job struct {
-	Payload Payload
+	PayLoad Payload
 }
 
 type Worker struct {
@@ -35,6 +39,7 @@ func NewWorker(workerPool chan chan Job) Worker {
 	}
 }
 
+// Start 方法开启一个 worker 循环，监听退出 channel，可按需停止这个循环
 func (w Worker) Start() {
 	go func() {
 		for {
@@ -42,10 +47,11 @@ func (w Worker) Start() {
 			w.WorkerPool <- w.JobChannel
 			select {
 			case job := <-w.JobChannel:
-				// 真正操作业务的地方
-				// 模拟耗时操作
+				//   真正业务的地方
+				//  模拟操作耗时
 				time.Sleep(500 * time.Millisecond)
-				fmt.Printf("上传成功%v\n", job)
+				fmt.Printf("上传成功:%v\n", job)
+				//w.WorkerPool <- w.JobChannel
 			case <-w.quit:
 				return
 			}
@@ -66,6 +72,14 @@ type Dispatcher struct {
 
 func NewDispatcher(maxWorkers int) *Dispatcher {
 	pool := make(chan chan Job, maxWorkers)
+
+	go func() {
+		for {
+			time.Sleep(time.Second * 5)
+			fmt.Printf("pool current len: %d\n", len(pool))
+		}
+
+	}()
 	return &Dispatcher{WorkerPool: pool}
 }
 
@@ -75,7 +89,6 @@ func (d *Dispatcher) Run() {
 		worker := NewWorker(d.WorkerPool)
 		worker.Start()
 	}
-
 	go d.dispatch()
 }
 
@@ -94,8 +107,13 @@ func (d *Dispatcher) dispatch() {
 }
 
 // 接收请求，把任务筛入JobQueue。
+var count = 0
+
 func payloadHandler(w http.ResponseWriter, r *http.Request) {
-	work := Job{Payload: Payload{}}
+	count++
+	fmt.Printf("get %d req\n", count)
+
+	work := Job{PayLoad: Payload{}}
 	JobQueue <- work
 	_, _ = w.Write([]byte("操作成功"))
 }
